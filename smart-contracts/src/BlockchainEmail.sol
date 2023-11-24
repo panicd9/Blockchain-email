@@ -7,7 +7,7 @@ import {console} from "forge-std/console.sol";
 /**
  * @title Blockchain email
  * @author Darko Panic
- * @notice Detailed info about dapp -> https://github.com/panicd9/Blockchain-messanger
+ * @notice Detailed info about dapp -> https://github.com/panicd9/Blockchain-email
  * @dev This contract is used for sending messages between users. Every user first needs to add his public key to the contract.
  * Every time chat is created between two users, CHAT SECRET KEY is generated and encrypted (on backend side) using public keys of both users.
  * CHAT SECRET KEY is used to avoid encrypting and storing every message 2 times (with sender and recipient public key).
