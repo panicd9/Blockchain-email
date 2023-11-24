@@ -13,11 +13,19 @@ This project was built using the following tools:
 ## Example usage
 
 1. `anvil`
+2. `make deploy`
+3. `cargo run -- test`
+
+---
+
+Alternatively:
+
+1. `anvil`
 2. `make deploy` in `smart-contracts` folder
 3. `cargo run -- init-chat --recipient 0x70997970C51812dc3A010C7d01b50e0d17dc79C8`
 4. `cargo run -- send-message -r 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 -m  "HELLO!"`
 5. `cargo run -- get-messages -r 0x70997970C51812dc3A010C7d01b50e0d17dc79C8`
-6. 
+
 ## About
 
 This DAPP is used for sending messages between users on a blockchain. Every user first needs to add their public key to the contract. Every time a chat is created between two users, a CHAT SECRET KEY is generated and encrypted (on the backend side) using the public keys of both users.
