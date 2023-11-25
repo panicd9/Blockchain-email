@@ -93,7 +93,7 @@ Messages are stored in the contract in the following format: nonce (96 bits) + e
             -h, --help
                     Print help
 - **get-messages**:    Get messages
-  - Usage: blockchain-email get-messages [OPTIONS] --recipient <RECIPIENT>
+  - **Usage: blockchain-email get-messages [OPTIONS] --recipient <RECIPIENT>**
 
         Options:
             -c, --contract-address <CONTRACT_ADDRESS>
