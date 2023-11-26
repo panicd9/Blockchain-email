@@ -9,6 +9,8 @@ use commands::*;
 async fn main() {
     let args = MessangerArgs::parse();
 
+    // ethers::contract::Abigen::new("BlockchainEmail", "./src/commands/BlockchainEmail.json").unwrap().generate().unwrap().write_to_file("./src/commands/blockchain_email.rs");
+
     match args.command {
         cli::Command::SendMessage(send_message_args) => {
             handle_send_message_command(send_message_args).await
@@ -20,7 +22,7 @@ async fn main() {
         cli::Command::GetMessages(get_messages_args) => {
             handle_get_messages_command(get_messages_args).await
         }
-        cli::Command::Test {  } => handle_test_command().await,
+        cli::Command::Test {} => handle_test_command().await,
     }
 }
 

@@ -14,9 +14,10 @@ import {console} from "forge-std/console.sol";
  * Every message is encrypted using CHAT SECRET KEY and stored in contract. When user wants to read messages, he needs to decrypt them
  * using CHAT SECRET KEY, but he first needs to decrypt CHAT SECRET KEY with his own private key.
  *
- * Messages are stored in contract in following format: nonce (96 bits) + encryptedMessage + timestamp (256 bits).
+ * Messages are stored in contract in following format: nonce (96 bits) + encryptedMessage + timestamp (32 bits).
  * Nonce is used to ensure that old communications cannot be reused in replay attacks.
  * Message is timestamped inside contract to avoid any manipulation with timestamps by users.
+ * 32 bits timestamp can only represent dates up to the year 2106 but saves gas when storing messages.
  *
  * In backend CLI tool i wrote in Rust, i used following libraries:
  * CHAT SECRET KEY is encrypted using ecies crate (Elliptic Curve Integrated Encryption Scheme).
@@ -88,7 +89,7 @@ contract BlockchainEmail {
             revert Messanger__SecretKeyNotInitialized(participants, msg.sender, _recipient);
         }
 
-        bytes memory timestampBytes = abi.encodePacked(block.timestamp);
+        bytes memory timestampBytes = abi.encodePacked(uint32(block.timestamp));
         message = abi.encodePacked(message, timestampBytes);
 
         s_senderToRecipientMessages[msg.sender][_recipient].push(message);

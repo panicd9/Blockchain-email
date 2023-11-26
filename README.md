@@ -34,11 +34,12 @@ The CHAT SECRET KEY is used to avoid encrypting and storing every message twice 
 
 ## Message Representation
 
-Messages are stored in the contract in the following format: nonce (96 bits) + encryptedMessage + timestamp (256 bits). 
+Messages are stored in the contract in the following format: nonce (96 bits) + encryptedMessage + timestamp (32 bits). 
 
 - The nonce is a random number that is used only once. It is used to ensure that old communications cannot be reused in replay attacks. 
 - The encryptedMessage is the actual content of the message, encrypted using the CHAT SECRET KEY.
 - The timestamp is the time when the message was sent, recorded inside the contract to avoid any manipulation with timestamps by users.
+- 32 bits timestamp can only represent dates up to the year 2106 but saves gas when storing messages.
 
 ## CLI tool
 

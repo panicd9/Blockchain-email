@@ -3,6 +3,7 @@ use aes_gcm_siv::{
     aead::{Aead, KeyInit, OsRng},
     Aes256GcmSiv, Nonce,
 };
+use blockchain_email::*;
 use byteorder::{BigEndian, ByteOrder};
 use chrono::{DateTime, Utc};
 use colored::*;
@@ -16,7 +17,6 @@ use ethers::{
     utils,
 };
 use libsecp256k1::util::TAG_PUBKEY_FULL;
-use blockchain_email::*;
 use std::fmt;
 use std::sync::Arc;
 use term_size;
@@ -26,7 +26,8 @@ use crate::cli::NormalizeArgs;
 const _ANVIL_RPC_URL: &str = "http://127.0.0.1:8545";
 const _ANVIL_PRIVATE_KEY_0: &str =
     "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-const _ANVIL_PRIVATE_KEY_1: &str = "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const _ANVIL_PRIVATE_KEY_1: &str =
+    "59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
 const _ANVIL_ADDRESS_ACC_0: &str = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 const _ANVIL_ADDRESS_ACC_1: &str = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const _ADDR_CONTRACT_STR: &str = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
@@ -34,6 +35,7 @@ static _ADDR_CONTRACT: H160 = H160([
     0x5F, 0xBD, 0xB2, 0x31, 0x56, 0x78, 0xAF, 0xEC, 0xB3, 0x67, 0xF0, 0x32, 0xD9, 0x3F, 0x64, 0x2F,
     0x64, 0x18, 0x0A, 0xA3,
 ]);
+const TIMESTAMP_SIZE_BYTES: usize = 4;
 
 // Prepend to public key to indicate uncompressed key
 // const TAG_PUBKEY_FULL: u8 = 0x04;
@@ -50,7 +52,7 @@ enum MessageType {
 struct Message {
     sender: Address,
     content: String,
-    timestamp: u64,
+    timestamp: u32,
     message_type: MessageType,
 }
 
@@ -148,7 +150,8 @@ fn _init_contract(
     contract_address: Address,
     client: &Client,
 ) -> BlockchainEmail<SignerMiddleware<Provider<Http>, Wallet<k256::ecdsa::SigningKey>>> {
-    let contract = blockchain_email::BlockchainEmail::new(contract_address, Arc::new(client.clone()));
+    let contract =
+        blockchain_email::BlockchainEmail::new(contract_address, Arc::new(client.clone()));
     return contract;
 }
 
@@ -197,7 +200,9 @@ async fn _send_message(
     ethers::core::rand::Rng::fill(&mut rng, &mut nonce[..]);
 
     // let nonce = Nonce::from_slice(b"unique nonce"); // 96-bits; unique per message
-    let encrypted_message = cipher.encrypt(Nonce::from_slice(&nonce), message.as_bytes()).unwrap();
+    let encrypted_message = cipher
+        .encrypt(Nonce::from_slice(&nonce), message.as_bytes())
+        .unwrap();
 
     let prepended_nonce_to_encrypted_message = [&nonce, encrypted_message.as_slice()].concat();
 
@@ -272,9 +277,11 @@ async fn _get_messages(
     for encrypted_message_with_nonce_and_timestamp in &encrypted_messages_from_sender {
         let nonce = Nonce::from_slice(&encrypted_message_with_nonce_and_timestamp[0..12]);
         let len = encrypted_message_with_nonce_and_timestamp.len();
-        let encrypted_message = &encrypted_message_with_nonce_and_timestamp[12..len - 32];
-        let timestamp_bytes = &encrypted_message_with_nonce_and_timestamp[len - 32..];
-        let timestamp = BigEndian::read_u64(&timestamp_bytes[24..32]);
+        let encrypted_message =
+            &encrypted_message_with_nonce_and_timestamp[12..len - TIMESTAMP_SIZE_BYTES];
+        let timestamp_bytes =
+            &encrypted_message_with_nonce_and_timestamp[len - TIMESTAMP_SIZE_BYTES..];
+        let timestamp = BigEndian::read_u32(&timestamp_bytes);
 
         let cipher = Aes256GcmSiv::new_from_slice(&decrypted_chat_sk).unwrap();
         let message_text = cipher.decrypt(nonce, encrypted_message).unwrap();
@@ -301,9 +308,11 @@ async fn _get_messages(
     for encrypted_message_with_nonce_and_timestamp in &encrypted_messages_from_recipient {
         let nonce = Nonce::from_slice(&encrypted_message_with_nonce_and_timestamp[0..12]);
         let len = encrypted_message_with_nonce_and_timestamp.len();
-        let encrypted_message = &encrypted_message_with_nonce_and_timestamp[12..len - 32];
-        let timestamp_bytes = &encrypted_message_with_nonce_and_timestamp[len - 32..];
-        let timestamp = BigEndian::read_u64(&timestamp_bytes[24..32]);
+        let encrypted_message =
+            &encrypted_message_with_nonce_and_timestamp[12..len - TIMESTAMP_SIZE_BYTES];
+        let timestamp_bytes =
+            &encrypted_message_with_nonce_and_timestamp[len - TIMESTAMP_SIZE_BYTES..];
+        let timestamp = BigEndian::read_u32(&timestamp_bytes);
         let cipher = Aes256GcmSiv::new_from_slice(&decrypted_chat_sk).unwrap();
         let message_text = cipher.decrypt(nonce, encrypted_message).unwrap();
 
@@ -360,7 +369,7 @@ async fn _get_public_key(
     client: &Client,
     address: Address,
     messanger_contract: Option<
-    BlockchainEmail<SignerMiddleware<Provider<Http>, Wallet<k256::ecdsa::SigningKey>>>,
+        BlockchainEmail<SignerMiddleware<Provider<Http>, Wallet<k256::ecdsa::SigningKey>>>,
     >,
 ) -> Option<[u8; 65]> {
     let contract = messanger_contract.unwrap_or_else(|| _init_contract(contract_address, &client));
@@ -411,7 +420,8 @@ async fn _add_encrypted_secret_keys(
     let sender_pk: PublicKey = PublicKey::from_secret_key(&sender_sk);
     let (_, sender_pk) = (&sender_sk.serialize(), &sender_pk.serialize());
 
-    let key: aes_gcm_siv::aead::generic_array::GenericArray<u8,_>  = Aes256GcmSiv::generate_key(&mut OsRng);
+    let key: aes_gcm_siv::aead::generic_array::GenericArray<u8, _> =
+        Aes256GcmSiv::generate_key(&mut OsRng);
     // let cipher: Aes256GcmSiv = Aes256GcmSiv::new(&key);
     // let key_bytes = &[
     //     13, 140, 250, 52, 48, 152, 33, 244, 36, 77, 85, 83, 14, 4, 251, 85, 29, 196, 64, 43, 37,
@@ -453,7 +463,7 @@ async fn _get_encrypted_secret_key(
     client: Client,
     recipient: Address,
     messanger_contract: Option<
-    BlockchainEmail<SignerMiddleware<Provider<Http>, Wallet<k256::ecdsa::SigningKey>>>,
+        BlockchainEmail<SignerMiddleware<Provider<Http>, Wallet<k256::ecdsa::SigningKey>>>,
     >,
 ) -> [u8; 129] {
     let contract = messanger_contract.unwrap_or_else(|| _init_contract(contract_address, &client));
@@ -607,33 +617,58 @@ pub async fn handle_test_command() {
     )
     .await;
 
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_0, &client_sender, recipient, "Hello!", verbose).await;
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_0, &client_sender, recipient, "This DAPP is amazing!!!", verbose).await;
-    
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_1, &client_recipient, sender, "I love it!", verbose).await;
-    
+    _send_message(
+        contract_address,
+        &_ANVIL_PRIVATE_KEY_0,
+        &client_sender,
+        recipient,
+        "Hello!",
+        verbose,
+    )
+    .await;
+    _send_message(
+        contract_address,
+        &_ANVIL_PRIVATE_KEY_0,
+        &client_sender,
+        recipient,
+        "This DAPP is amazing!!!",
+        verbose,
+    )
+    .await;
+
+    _send_message(
+        contract_address,
+        &_ANVIL_PRIVATE_KEY_1,
+        &client_recipient,
+        sender,
+        "I love it!",
+        verbose,
+    )
+    .await;
+
     _send_message(contract_address, &_ANVIL_PRIVATE_KEY_0, &client_sender, recipient, "I've had enough of Facebook Messenger. Privacy concerns and constant ads are driving me crazy!", verbose).await;
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_1, &client_recipient, sender, "Totally agree! I've been looking into decentralized messaging apps. Have you tried any?", verbose).await;
-
-
+    _send_message(
+        contract_address,
+        &_ANVIL_PRIVATE_KEY_1,
+        &client_recipient,
+        sender,
+        "Totally agree! I've been looking into decentralized messaging apps. Have you tried any?",
+        verbose,
+    )
+    .await;
     _send_message(contract_address, &_ANVIL_PRIVATE_KEY_0, &client_sender, recipient, "Yes, I've switched to one. The blockchain technology behind it ensures end-to-end encryption and gives me full control over my data.", verbose).await;
     _send_message(contract_address, &_ANVIL_PRIVATE_KEY_1, &client_recipient, sender, "That's awesome! I love the idea of decentralized messaging. No more big corporations mining my data for targeted ads.", verbose).await;
-
-
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_0, &client_sender, recipient, "The best part is, I can communicate directly with friends without any middleman. It's fast and secure.", verbose).await;
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_1, &client_recipient, sender, "And there's no central authority tracking our every move. It's liberating!", verbose).await;
-
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_0, &client_sender, recipient, "Plus, the features enabled by blockchain, like decentralized file sharing and smart contracts, are game-changers.", verbose).await;
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_1, &client_recipient, sender, "I heard about that! Imagine having smart contract-based group chats. It's like a whole new level of interaction.", verbose).await;
-
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_0, &client_sender, recipient, "Exactly! I'm never going back to centralized messengers. Decentralized is the way forward!", verbose).await;
-    _send_message(contract_address, &_ANVIL_PRIVATE_KEY_1, &client_recipient, sender, "Agreed. It's refreshing to be part of a community-driven platform rather than being just a product for a tech giant.", verbose).await;
-
-
-    let messages = _get_messages(contract_address, client_sender, &_ANVIL_PRIVATE_KEY_0, recipient, verbose).await;
+    
+    let messages = _get_messages(
+        contract_address,
+        client_sender,
+        &_ANVIL_PRIVATE_KEY_0,
+        recipient,
+        verbose,
+    )
+    .await;
 
     for msg in &messages {
         println!("{}", msg);
     }
-
 }
